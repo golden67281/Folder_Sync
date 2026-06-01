@@ -107,7 +107,8 @@ function startWatcher(folderPath) {
   watcher
     .on('add', fp => { const n = path.basename(fp); console.log('Added:', n); io.emit('files-update', getFiles()); io.emit('notify', { type: 'add', message: 'New file: ' + n }); })
     .on('change', fp => { const n = path.basename(fp); io.emit('files-update', getFiles()); io.emit('notify', { type: 'change', message: 'Updated: ' + n }); })
-    .on('unlink', fp => { const n = path.basename(fp); console.log('Deleted:', n); io.emit('files-update', getFiles()); io.emit('notify', { type: 'delete', message: 'Deleted: ' + n }); });
+    .on('unlink', fp => { const n = path.basename(fp); console.log('Deleted:', n); io.emit('files-update', getFiles()); io.emit('notify', { type: 'delete', message: 'Deleted: ' + n }); })
+    .on('error', err => console.error('Watcher error:', err.message));
 }
 startWatcher(config.syncFolder);
 
