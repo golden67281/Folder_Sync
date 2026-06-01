@@ -366,12 +366,40 @@
   </div>
 </div>
 
+<!-- Preview File modal -->
+<div class="modal-ov" id="pvm-ov">
+  <div class="modal" style="max-height: 90vh; overflow-y: auto;">
+    <div class="m-title" id="pvm-title">📄 Preview File</div>
+    <div class="m-body" id="pvm-meta" style="margin-bottom: 12px; font-size:12px;"></div>
+    
+    <!-- Preview Box -->
+    <div id="pvm-preview-box" style="margin-bottom: 20px; text-align: center; background: rgba(0,0,0,0.15); padding: 15px; border-radius: var(--r); border: 1px solid var(--border); min-height: 80px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+      <!-- Content inserted dynamically -->
+    </div>
+
+    <!-- Share Link Section -->
+    <div style="margin-bottom: 20px; border-top: 1px solid var(--border); padding-top: 15px;">
+      <div style="font-size: 12px; font-weight: 600; color: var(--txt2); margin-bottom: 8px;">🔗 Shareable File Link</div>
+      <div style="display: flex; gap: 8px;">
+        <input class="nfm-input" id="pvm-share-input" readonly style="margin-bottom: 0; font-size: 13px;" onclick="this.select()" />
+        <button class="apply-btn" onclick="copyShareLink()" style="padding: 0 15px;">Copy</button>
+      </div>
+    </div>
+
+    <div class="m-acts">
+      <button class="btn btn-cancel" onclick="closePreviewModal()">Close</button>
+      <button class="btn btn-create" id="pvm-tab-btn" onclick="openFileInTab()">Open Tab</button>
+    </div>
+  </div>
+</div>
+
 <script>
   let currentPath = '';
   let syncConfig = {};
   let currentContents = { folders:[], files:[] };
   let pendingDelete = null;
   let pendingDownload = null;
+  let pendingPreview = null;
   let lastUpdated = null;
 
   const isLaptop = ['localhost','127.0.0.1','::1'].includes(location.hostname);
@@ -450,12 +478,12 @@
     }).join('');
     const fileHTML = files.map((f, i) => {
       const p = currentPath ? currentPath+'/'+f.name : f.name;
-      return `<div class="file-card" style="animation-delay:${(folders.length+i)*.04}s">
+      return `<div class="file-card" style="animation-delay:${(folders.length+i)*.04}s" onclick="previewFile('${escA(p)}','${escA(f.name)}','${f.ext}',${f.size})">
         <div class="file-icon" style="background:${fGrad(f.ext)}">${fEmoji(f.ext)}</div>
         <div class="fn"><div class="fn-name" title="${esc(f.name)}">${esc(f.name)}</div><div class="fn-meta">${fmtSize(f.size)} · ${fmtDate(f.modified)}</div></div>
         <div class="acts">
-          <button class="ib dl" onclick="dlFile('${escA(p)}')">⬇️</button>
-          <button class="ib rm" onclick="openDel('${escA(p)}','${escA(f.name)}',false)">🗑️</button>
+          <button class="ib dl" onclick="event.stopPropagation();dlFile('${escA(p)}')">⬇️</button>
+          <button class="ib rm" onclick="event.stopPropagation();openDel('${escA(p)}','${escA(f.name)}',false)">🗑️</button>
         </div></div>`;
     }).join('');
     el.innerHTML = fHTML + fileHTML;
@@ -540,6 +568,93 @@
   }
 
   document.getElementById('dlm-ov').addEventListener('click', e => { if(e.target===document.getElementById('dlm-ov')) closeDownloadModal(); });
+
+  // ── Preview File ───────────────────────────────────────────
+  function previewFile(relPath, filename, ext, size) {
+    pendingPreview = { path: relPath, filename: filename, ext: ext };
+    
+    document.getElementById('pvm-title').textContent = filename;
+    document.getElementById('pvm-meta').textContent = `${ext.toUpperCase()} file · ${fmtSize(size)}`;
+    
+    const previewBox = document.getElementById('pvm-preview-box');
+    previewBox.innerHTML = '';
+    
+    // Set share URL
+    const shareUrl = window.location.origin + '/api/view?path=' + encodeURIComponent(relPath);
+    document.getElementById('pvm-share-input').value = shareUrl;
+    
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'heic'];
+    const audioExts = ['mp3', 'wav', 'flac', 'aac'];
+    const videoExts = ['mp4', 'mov', 'avi', 'mkv'];
+    const textExts = ['txt', 'md', 'js', 'ts', 'py', 'html', 'css', 'json', 'bat', 'sh'];
+    
+    const url = '/api/view?path=' + encodeURIComponent(relPath);
+    
+    if (imageExts.includes(ext)) {
+      previewBox.innerHTML = `<img src="${url}" style="max-width:100%; max-height:280px; border-radius:8px; object-fit:contain;" alt="${esc(filename)}" />`;
+    } else if (audioExts.includes(ext)) {
+      previewBox.innerHTML = `<span style="font-size:40px; margin-bottom:10px;">🎵</span><audio controls src="${url}" style="width:100%;"></audio>`;
+    } else if (videoExts.includes(ext)) {
+      previewBox.innerHTML = `<video controls src="${url}" style="width:100%; max-height:280px; border-radius:8px; object-fit:contain;"></video>`;
+    } else if (textExts.includes(ext)) {
+      previewBox.innerHTML = '<div style="font-size:11px;color:var(--txt3);"><span class="spin"></span> Loading file contents...</div>';
+      fetch(url)
+        .then(res => {
+          if (!res.ok) throw new Error();
+          return res.text();
+        })
+        .then(text => {
+          const truncated = text.length > 2000 ? text.substring(0, 2000) + '\n\n[TRUNCATED...]' : text;
+          previewBox.innerHTML = `<pre style="background:rgba(0,0,0,0.25); padding:12px; border-radius:8px; overflow:auto; max-height:200px; width:100%; font-family:monospace; font-size:11px; text-align:left; white-space:pre-wrap; word-break:break-all; border:1px solid var(--border); color:#a5b4fc;">${esc(truncated)}</pre>`;
+        })
+        .catch(() => {
+          previewBox.innerHTML = `<span style="font-size:40px; margin-bottom:10px;">📃</span><div style="font-size:12px;color:var(--danger);">Could not load text preview</div>`;
+        });
+    } else {
+      previewBox.innerHTML = `<span style="font-size:45px; margin-bottom:10px;">${fEmoji(ext)}</span><div style="font-size:12px; color:var(--txt2);">Preview not available for this type.</div>`;
+    }
+    
+    document.getElementById('pvm-ov').classList.add('show');
+  }
+
+  function closePreviewModal() {
+    document.getElementById('pvm-ov').classList.remove('show');
+    const previewBox = document.getElementById('pvm-preview-box');
+    const media = previewBox.querySelector('audio, video');
+    if (media) media.pause();
+    pendingPreview = null;
+  }
+
+  function openFileInTab() {
+    if (!pendingPreview) return;
+    const url = '/api/view?path=' + encodeURIComponent(pendingPreview.path);
+    window.open(url, '_blank');
+  }
+
+  function copyShareLink() {
+    const input = document.getElementById('pvm-share-input');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(input.value)
+        .then(() => showToast('📋 Link copied to clipboard!', 'success'))
+        .catch(() => fallbackCopy(input));
+    } else {
+      fallbackCopy(input);
+    }
+  }
+
+  function fallbackCopy(input) {
+    try {
+      document.execCommand('copy');
+      showToast('📋 Link copied to clipboard!', 'success');
+    } catch {
+      showToast('❌ Failed to copy link', 'error');
+    }
+  }
+
+  document.getElementById('pvm-ov').addEventListener('click', e => { if(e.target===document.getElementById('pvm-ov')) closePreviewModal(); });
 
   // ── Delete ─────────────────────────────────────────────────
   function openDel(p, name, isFolder) {

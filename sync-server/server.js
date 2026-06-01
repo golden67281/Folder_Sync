@@ -197,6 +197,14 @@ app.get('/api/download', (req, res) => {
   res.download(abs, path.basename(abs));
 });
 
+// ---------- Route: View inline (Preview) ----------
+app.get('/api/view', (req, res) => {
+  const relPath = (req.query.path || '').replace(/\\/g, '/');
+  const abs = safePath(relPath);
+  if (!abs || !fs.existsSync(abs)) return res.status(404).json({ error: 'Not found' });
+  res.sendFile(abs);
+});
+
 // ---------- Route: Delete ----------
 app.delete('/api/delete', (req, res) => {
   const relPath = (req.query.path || '').replace(/\\/g, '/');
