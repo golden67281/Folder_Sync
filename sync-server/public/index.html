@@ -239,6 +239,18 @@
     <button id="change-btn" onclick="pickFolder()">📁 Change</button>
   </div>
 
+  <!-- Shared Clipboard (Laptop <-> Phone) -->
+  <div id="clipboard-card" style="margin: 0 20px 14px; padding: 13px 15px; background: var(--card); border: 1px solid var(--border); border-radius: var(--r); display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: .6px;">
+      <span>📋 Shared Clipboard / Link Share</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <input class="path-input" id="clip-input" placeholder="Type text or paste a link to share..." style="padding: 10px 13px; font-size: 13px; margin: 0;" onkeydown="if(event.key==='Enter')shareClipText()" />
+      <button class="apply-btn" onclick="shareClipText()" style="padding: 0 15px; font-weight: 700;">Share</button>
+      <button class="apply-btn" onclick="copyClipText()" style="padding: 0 12px; background: rgba(255,255,255,0.04); border-color: var(--border); color: var(--txt2);">Copy</button>
+    </div>
+  </div>
+
   <!-- Breadcrumb -->
   <div id="breadcrumb-wrap"><div id="breadcrumb"></div></div>
 
@@ -421,6 +433,9 @@
     syncConfig = data; updateBanner(); currentPath = ''; browse('');
     showToast('📂 Now syncing: ' + data.folderName, 'info');
   });
+  socket.on('text-update', text => {
+    document.getElementById('clip-input').value = text || '';
+  });
 
   function setStatus(s, t) {
     document.getElementById('status-badge').className = s;
@@ -587,11 +602,14 @@
     const audioExts = ['mp3', 'wav', 'flac', 'aac'];
     const videoExts = ['mp4', 'mov', 'avi', 'mkv'];
     const textExts = ['txt', 'md', 'js', 'ts', 'py', 'html', 'css', 'json', 'bat', 'sh'];
+    const pdfExts = ['pdf'];
     
     const url = '/api/view?path=' + encodeURIComponent(relPath);
     
     if (imageExts.includes(ext)) {
       previewBox.innerHTML = `<img src="${url}" style="max-width:100%; max-height:280px; border-radius:8px; object-fit:contain;" alt="${esc(filename)}" />`;
+    } else if (pdfExts.includes(ext)) {
+      previewBox.innerHTML = `<iframe src="${url}" style="width:100%; height:320px; border:none; border-radius:8px; background:#fff;"></iframe>`;
     } else if (audioExts.includes(ext)) {
       previewBox.innerHTML = `<span style="font-size:40px; margin-bottom:10px;">🎵</span><audio controls src="${url}" style="width:100%;"></audio>`;
     } else if (videoExts.includes(ext)) {
@@ -864,6 +882,33 @@
   function fGrad(e){const m={pdf:'rgba(239,68,68,.2)',jpg:'rgba(16,185,129,.2)',jpeg:'rgba(16,185,129,.2)',png:'rgba(16,185,129,.2)',gif:'rgba(16,185,129,.2)',heic:'rgba(16,185,129,.2)',mp4:'rgba(245,158,11,.2)',mov:'rgba(245,158,11,.2)',mp3:'rgba(139,92,246,.2)',zip:'rgba(251,191,36,.2)',doc:'rgba(59,130,246,.2)',docx:'rgba(59,130,246,.2)',xls:'rgba(16,185,129,.2)',xlsx:'rgba(16,185,129,.2)'};const c=m[e]||'rgba(99,102,241,.2)';return`linear-gradient(135deg,${c},${c.replace('.2)','.06)')})`;}
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   function escA(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+
+  function shareClipText() {
+    const val = (document.getElementById('clip-input').value || '').trim();
+    socket.emit('share-text', val);
+    showToast('🚀 Text shared with other devices!', 'success');
+  }
+
+  function copyClipText() {
+    const val = document.getElementById('clip-input').value;
+    if (!val) { showToast('Nothing to copy', 'error'); return; }
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(val)
+        .then(() => showToast('📋 Copied shared text!', 'success'))
+        .catch(() => showToast('❌ Failed to copy text', 'error'));
+    } else {
+      const input = document.getElementById('clip-input');
+      input.select();
+      input.setSelectionRange(0, 99999);
+      try {
+        document.execCommand('copy');
+        showToast('📋 Copied shared text!', 'success');
+      } catch {
+        showToast('❌ Failed to copy text', 'error');
+      }
+    }
+  }
 
   loadConfig();
   browse('');

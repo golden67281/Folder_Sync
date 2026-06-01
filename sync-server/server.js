@@ -304,10 +304,19 @@ app.delete('/api/files/:fn', (req, res) => {
 app.get('/api/info', (req, res) => res.json({ syncFolder: config.syncFolder, folderName: config.folderName, ip: getLocalIP(), port: PORT }));
 
 // ---------- Socket.io ----------
+let sharedText = '';
+
 io.on('connection', socket => {
   console.log('Device connected:', socket.id);
   socket.emit('files-update', getFiles());
   socket.emit('folder-changed', { folderName: config.folderName, syncFolder: config.syncFolder });
+  socket.emit('text-update', sharedText);
+  
+  socket.on('share-text', text => {
+    sharedText = text || '';
+    socket.broadcast.emit('text-update', sharedText); // broadcast to other devices
+  });
+
   socket.on('disconnect', () => console.log('Device disconnected:', socket.id));
 });
 
