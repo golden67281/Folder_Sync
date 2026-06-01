@@ -1,0 +1,18 @@
+# Node.js dependencies
+node_modules/
+package-lock.json
+
+# Local configurations
+sync-server/config.json
+
+# Exclude local synced files from sync-folder
+sync-folder/*
+!sync-folder/.gitkeep
+
+# System and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.log
